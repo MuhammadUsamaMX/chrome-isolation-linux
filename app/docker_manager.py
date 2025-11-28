@@ -3,11 +3,52 @@ Docker Manager - Handle container lifecycle operations
 """
 import docker
 import os
+import subprocess
 from config import DOCKER_IMAGE_NAME, CONTAINER_PREFIX, CHROME_PROFILES_DIR
 
 class DockerManager:
     def __init__(self):
         self.client = docker.from_env()
+        self.ensure_image_exists()
+    
+    def ensure_image_exists(self):
+        """Check if Docker image exists, build if missing"""
+        try:
+            self.client.images.get(DOCKER_IMAGE_NAME)
+            print(f"✅ Docker image '{DOCKER_IMAGE_NAME}' found")
+        except docker.errors.ImageNotFound:
+            print(f"⚠️  Docker image '{DOCKER_IMAGE_NAME}' not found. Building...")
+            self.build_image()
+    
+    def build_image(self):
+        """Build the Docker image"""
+        try:
+            # Get the directory containing the Dockerfile
+            dockerfile_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            
+            print(f"🔨 Building Docker image from {dockerfile_dir}...")
+            
+            # Use subprocess to run docker build with BuildKit
+            env = os.environ.copy()
+            env['DOCKER_BUILDKIT'] = '1'
+            
+            result = subprocess.run(
+                ['docker', 'build', '-t', DOCKER_IMAGE_NAME, dockerfile_dir],
+                env=env,
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully built Docker image '{DOCKER_IMAGE_NAME}'")
+            else:
+                print(f"❌ Failed to build Docker image:")
+                print(result.stderr)
+                raise Exception(f"Docker build failed: {result.stderr}")
+                
+        except Exception as e:
+            print(f"❌ Error building Docker image: {e}")
+            raise
     
     def get_container_name(self, profile_name):
         """Get container name for a profile"""

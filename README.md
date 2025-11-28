@@ -193,10 +193,6 @@ docker stop chrome-ProfileName
 ![Profile Card](docs/screenshots/profile-card.png)
 *Profile card showing status, storage, and action buttons*
 
-### Toast Notifications
-![Toast](docs/screenshots/toast-notification.png)
-*Elegant toast notifications with auto-dismiss*
-
 ## 🏗️ Architecture
 
 ```
@@ -214,6 +210,11 @@ chrome-isolation/
 │       └── index.html         # Dashboard
 ├── scripts/
 │   └── chrome-launcher.sh     # Desktop entry launcher
+├── docs/
+│   └── screenshots/           # Screenshot directory
+│       └──create-modal.png   # Create profile modal screenshot
+│       └──dashboard.png      # Dashboard screenshot
+│       └──profile-card.png   # Profile card screenshot
 ├── systemd/
 │   └── chrome-manager.service # System service
 ├── Dockerfile                 # Chrome container image
