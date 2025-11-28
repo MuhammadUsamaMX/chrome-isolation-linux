@@ -1,0 +1,142 @@
+"""
+Docker Manager - Handle container lifecycle operations
+"""
+import docker
+import os
+from config import DOCKER_IMAGE_NAME, CONTAINER_PREFIX, CHROME_PROFILES_DIR
+
+class DockerManager:
+    def __init__(self):
+        self.client = docker.from_env()
+    
+    def get_container_name(self, profile_name):
+        """Get container name for a profile"""
+        return f"{CONTAINER_PREFIX}{profile_name}"
+    
+    def get_profile_dir(self, profile_name):
+        """Get profile directory path"""
+        return os.path.join(CHROME_PROFILES_DIR, profile_name)
+    
+    def container_exists(self, profile_name):
+        """Check if container exists"""
+        try:
+            self.client.containers.get(self.get_container_name(profile_name))
+            return True
+        except docker.errors.NotFound:
+            return False
+    
+    def container_status(self, profile_name):
+        """Get container status"""
+        try:
+            container = self.client.containers.get(self.get_container_name(profile_name))
+            return container.status
+        except docker.errors.NotFound:
+            return "not_found"
+    
+    def start_container(self, profile_name):
+        """Start a Chrome container for the profile"""
+        container_name = self.get_container_name(profile_name)
+        profile_dir = self.get_profile_dir(profile_name)
+        downloads_dir = os.path.join(profile_dir, "Downloads")
+        
+        # Create directories if they don't exist
+        os.makedirs(profile_dir, exist_ok=True)
+        os.makedirs(downloads_dir, exist_ok=True)
+        
+        # Check if container already exists
+        try:
+            container = self.client.containers.get(container_name)
+            if container.status == "running":
+                return {"status": "already_running"}
+            else:
+                container.start()
+                return {"status": "started"}
+        except docker.errors.NotFound:
+            pass
+        
+        # Get PulseAudio cookie
+        pulse_cookie = None
+        for path in [os.path.expanduser("~/.config/pulse/cookie"), 
+                     os.path.expanduser("~/.pulse-cookie")]:
+            if os.path.exists(path):
+                pulse_cookie = path
+                break
+        
+        if not pulse_cookie:
+            pulse_cookie = "/tmp/pulse-cookie-generated"
+            open(pulse_cookie, 'a').close()
+        
+        # Container configuration
+        user_id = os.getuid()
+        volumes = {
+            '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'},
+            f'/run/user/{user_id}/pulse': {'bind': '/run/user/1000/pulse', 'mode': 'rw'},
+            pulse_cookie: {'bind': '/home/chrome/.config/pulse/cookie', 'mode': 'ro'},
+            profile_dir: {'bind': '/home/chrome/.config/google-chrome', 'mode': 'rw'},
+            downloads_dir: {'bind': '/home/chrome/Downloads', 'mode': 'rw'}
+        }
+        
+        environment = {
+            'DISPLAY': os.environ.get('DISPLAY', ':0'),
+            'PULSE_SERVER': 'unix:/run/user/1000/pulse/native',
+            'PULSE_COOKIE': '/home/chrome/.config/pulse/cookie'
+        }
+        
+        devices = ['/dev/dri']
+        
+        # Allow X11 access
+        os.system('xhost +local:docker > /dev/null 2>&1')
+        
+        # Create and start container
+        container = self.client.containers.run(
+            DOCKER_IMAGE_NAME,
+            name=container_name,
+            detach=True,
+            ipc_mode='host',
+            cap_add=['SYS_ADMIN'],
+            volumes=volumes,
+            environment=environment,
+            devices=devices,
+            group_add=['audio', 'video'],
+            security_opt=['seccomp=unconfined'],
+            command=[
+                '--window-position=0,0',
+                '--window-size=1280,800',
+                f'--class=chrome-{profile_name}'
+            ]
+        )
+        
+        return {"status": "created", "container_id": container.id}
+    
+    def stop_container(self, profile_name):
+        """Stop a container"""
+        try:
+            container = self.client.containers.get(self.get_container_name(profile_name))
+            container.stop()
+            return {"status": "stopped"}
+        except docker.errors.NotFound:
+            return {"status": "not_found"}
+    
+    def remove_container(self, profile_name):
+        """Remove a container"""
+        try:
+            container = self.client.containers.get(self.get_container_name(profile_name))
+            container.remove(force=True)
+            return {"status": "removed"}
+        except docker.errors.NotFound:
+            return {"status": "not_found"}
+    
+    def get_profile_size(self, profile_name):
+        """Get profile directory size in MB"""
+        profile_dir = self.get_profile_dir(profile_name)
+        if not os.path.exists(profile_dir):
+            return 0
+        
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(profile_dir):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                if os.path.exists(filepath):
+                    total_size += os.path.getsize(filepath)
+        
+        return round(total_size / (1024 * 1024), 2)  # Convert to MB

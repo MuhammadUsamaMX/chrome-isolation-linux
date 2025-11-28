@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chrome Isolation Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🔒 Chrome Isolation Manager</h1>
+            <p class="subtitle">Manage your isolated Chrome browser profiles</p>
+        </header>
+
+        <div class="actions">
+            <button class="btn btn-primary" onclick="showCreateModal()">
+                ➕ Create New Profile
+            </button>
+            <button class="btn btn-secondary" onclick="refreshProfiles()">
+                🔄 Refresh
+            </button>
+        </div>
+
+        <div id="profiles-container" class="profiles-grid">
+            <!-- Profiles will be loaded here -->
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+    </div>
+
+    <!-- Create Profile Modal -->
+    <div id="createModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCreateModal()">&times;</span>
+            <h2>Create New Profile</h2>
+            <form id="createForm" onsubmit="createProfile(event)">
+                <div class="form-group">
+                    <label for="profileName">Profile Name:</label>
+                    <input type="text" id="profileName" name="profileName" placeholder="e.g., Work, Personal, Shopping"
+                        pattern="[a-zA-Z0-9_-]+" title="Only letters, numbers, dash, and underscore allowed" required>
+                    <small>Use only letters, numbers, dash (-), and underscore (_)</small>
+                </div>
+                <div class="form-group">
+                    <label for="profileLocation">Profile Location (optional):</label>
+                    <input type="text" id="profileLocation" name="profileLocation"
+                        placeholder="Leave empty for default: ~/Chrome/[ProfileName]">
+                    <small>Specify a custom directory path or leave empty for default location</small>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Create</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+
+</html>

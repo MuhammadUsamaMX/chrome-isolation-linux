@@ -1,0 +1,16 @@
+[Unit]
+Description=Chrome Isolation Manager Web Interface
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=%u
+WorkingDirectory=/home/%u/Work/Self/chrome-isolation/app
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/python3 /home/%u/Work/Self/chrome-isolation/app/app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
