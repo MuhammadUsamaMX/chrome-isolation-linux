@@ -22,6 +22,11 @@
             <button class="btn btn-secondary" onclick="refreshProfiles()">
                 🔄 Refresh
             </button>
+            <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">
+                📥 Import Profile
+            </button>
+            <input type="file" id="importFile" style="display: none;" accept=".zip,.tar.gz,.tgz"
+                onchange="importProfile(this)">
         </div>
 
         <div id="profiles-container" class="profiles-grid">

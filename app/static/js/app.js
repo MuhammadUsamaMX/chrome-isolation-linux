@@ -58,6 +58,7 @@ function renderProfiles() {
             ? `<button class="btn btn-danger btn-sm" onclick="stopProfile('${escapeHtml(profile.name)}')">⏹️ Stop</button>`
             : `<button class="btn btn-success btn-sm" onclick="startProfile('${escapeHtml(profile.name)}')">▶️ Start</button>`
         }
+                <button class="btn btn-secondary btn-sm" onclick="exportProfile('${escapeHtml(profile.name)}')">📤 Export</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteProfile('${escapeHtml(profile.name)}')">🗑️ Delete</button>
             </div>
         </div>
@@ -206,6 +207,41 @@ async function deleteProfile(profileName) {
         showError('Failed to delete profile');
     } finally {
         showLoading(false);
+    }
+}
+
+function exportProfile(profileName) {
+    window.location.href = `/api/profiles/${encodeURIComponent(profileName)}/export`;
+}
+
+async function importProfile(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        showLoading(true);
+        const response = await fetch('/api/profiles/import', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showSuccess(`Profile "${data.name}" imported successfully!`);
+            await refreshProfiles();
+        } else {
+            showError(data.error || 'Failed to import profile');
+        }
+    } catch (error) {
+        console.error('Error importing profile:', error);
+        showError('Failed to import profile');
+    } finally {
+        showLoading(false);
+        input.value = ''; // Reset input
     }
 }
 

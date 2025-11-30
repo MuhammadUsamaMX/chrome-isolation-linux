@@ -73,6 +73,8 @@ Perfect for:
 - ✅ GPU acceleration (AMD/Intel/NVIDIA)
 - ✅ Webcam support
 - ✅ Custom Chrome flags
+- ✅ **Export/Import Profiles** - Backup and restore profiles easily (ZIP format)
+- ✅ **Automatic Display Setup** - Auto-configures X11/Wayland access
 
 ## 📋 Requirements
 
@@ -179,6 +181,18 @@ Applications → Internet → Chrome (ProfileName)
 ```
 
 Click to launch - the container auto-starts if not running!
+
+### 🖥️ Display Setup (X11/Wayland)
+
+The application automatically handles display access for Docker containers. However, if you encounter display issues, you can add the startup script to your session:
+
+1.  **Open Startup Applications**
+2.  **Add a new entry**:
+    -   **Name**: Chrome Isolation X11 Setup
+    -   **Command**: `~/.local/share/chrome-isolation-manager/scripts/startup.sh`
+    -   **Comment**: Configures X11 access for Docker
+
+This ensures X11 access is always configured when you log in.
 
 ### Command Line
 

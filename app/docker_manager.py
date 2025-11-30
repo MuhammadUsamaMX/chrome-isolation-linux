@@ -125,8 +125,8 @@ class DockerManager:
         
         devices = ['/dev/dri']
         
-        # Allow X11 access
-        os.system('xhost +local:docker > /dev/null 2>&1')
+        # Automatically setup X11/Wayland access
+        self._setup_display_access()
         
         # Create and start container
         container = self.client.containers.run(
@@ -166,6 +166,27 @@ class DockerManager:
             return {"status": "removed"}
         except docker.errors.NotFound:
             return {"status": "not_found"}
+    
+    def _setup_display_access(self):
+        """Setup X11/Wayland display access for Docker containers"""
+        import subprocess
+        
+        # Detect display server
+        wayland_display = os.environ.get('WAYLAND_DISPLAY')
+        xdg_session_type = os.environ.get('XDG_SESSION_TYPE', '').lower()
+        
+        # Setup X11 access (works for both X11 and XWayland)
+        try:
+            subprocess.run(['xhost', '+local:docker'], 
+                          capture_output=True, 
+                          check=False)
+            print("✅ X11 access configured for Docker")
+        except FileNotFoundError:
+            print("⚠️  xhost not found - X11 access may not work")
+        
+        # Additional Wayland setup if needed
+        if wayland_display or xdg_session_type == 'wayland':
+            print("ℹ️  Wayland detected - using XWayland compatibility")
     
     def get_profile_size(self, profile_name):
         """Get profile directory size in MB"""

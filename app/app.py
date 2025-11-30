@@ -118,6 +118,118 @@ def profile_status(profile_name):
         'size_mb': docker_mgr.get_profile_size(profile_name)
     })
 
+@app.route('/api/profiles/<profile_name>/export', methods=['GET'])
+def export_profile(profile_name):
+    """Export profile as zip archive"""
+    import zipfile
+    import tempfile
+    from flask import send_file
+    
+    profile_dir = docker_mgr.get_profile_dir(profile_name)
+    if not os.path.exists(profile_dir):
+        return jsonify({'error': 'Profile not found'}), 404
+    
+    # Create temporary zip file
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+    
+    try:
+        with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Walk through the directory and add files to zip
+            for root, dirs, files in os.walk(profile_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    # Calculate arcname (relative path inside zip)
+                    # We want the profile_name as the root folder in the zip
+                    rel_path = os.path.relpath(file_path, os.path.dirname(profile_dir))
+                    zipf.write(file_path, rel_path)
+        
+        return send_file(
+            temp_file.name,
+            as_attachment=True,
+            download_name=f'{profile_name}.zip',
+            mimetype='application/zip'
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/profiles/import', methods=['POST'])
+def import_profile():
+    """Import profile from archive (zip or tar.gz)"""
+    import zipfile
+    import tarfile
+    import tempfile
+    
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    # Save uploaded file temporarily
+    # We don't enforce extension check here to allow flexibility
+    suffix = os.path.splitext(file.filename)[1]
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    file.save(temp_file.name)
+    
+    try:
+        profile_name = None
+        
+        # Try opening as ZIP
+        if zipfile.is_zipfile(temp_file.name):
+            with zipfile.ZipFile(temp_file.name, 'r') as zipf:
+                file_list = zipf.namelist()
+                if not file_list:
+                    raise Exception('Empty archive')
+                
+                # Get profile name
+                first_item = file_list[0]
+                if '/' in first_item:
+                    profile_name = first_item.split('/')[0]
+                else:
+                    profile_name = os.path.splitext(file.filename)[0]
+                
+                profile_dir = docker_mgr.get_profile_dir(profile_name)
+                if os.path.exists(profile_dir):
+                    raise Exception(f'Profile {profile_name} already exists')
+                
+                zipf.extractall(path=CHROME_PROFILES_DIR)
+                
+        # Try opening as TAR (tar.gz, .tgz, etc)
+        elif tarfile.is_tarfile(temp_file.name):
+            with tarfile.open(temp_file.name, 'r:*') as tar:
+                members = tar.getmembers()
+                if not members:
+                    raise Exception('Empty archive')
+                
+                # Get profile name
+                profile_name = members[0].name.split('/')[0]
+                profile_dir = docker_mgr.get_profile_dir(profile_name)
+                
+                if os.path.exists(profile_dir):
+                    raise Exception(f'Profile {profile_name} already exists')
+                
+                tar.extractall(path=CHROME_PROFILES_DIR)
+        else:
+            raise Exception('Unsupported archive format. Please use .zip or .tar.gz')
+            
+        # Create desktop entry
+        if profile_name:
+            desktop_mgr.create_desktop_entry(profile_name)
+        
+        # Clean up temp file
+        os.unlink(temp_file.name)
+        
+        return jsonify({
+            'status': 'imported',
+            'name': profile_name,
+            'path': docker_mgr.get_profile_dir(profile_name)
+        })
+    except Exception as e:
+        if os.path.exists(temp_file.name):
+            os.unlink(temp_file.name)
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     print(f"🚀 Chrome Isolation Manager starting on http://{HOST}:{PORT}")
     print(f"📁 Profiles directory: {CHROME_PROFILES_DIR}")
