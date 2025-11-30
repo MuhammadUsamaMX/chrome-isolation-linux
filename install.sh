@@ -15,10 +15,11 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Get the directory where the script is located
+# Installation directory
+INSTALL_DIR="$HOME/.local/share/chrome-isolation-manager"
+
+# Get the directory where the script is located (source directory)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_DIR="$SCRIPT_DIR/app"
-SYSTEMD_DIR="$SCRIPT_DIR/systemd"
 
 # Check if running as root
 if [ "$EUID" -eq 0 ]; then
@@ -92,8 +93,32 @@ else
 fi
 
 echo ""
+echo "📁 Creating installation directory..."
+
+# Remove old installation if exists
+if [ -d "$INSTALL_DIR" ]; then
+    echo -e "${YELLOW}⚠️  Existing installation found at $INSTALL_DIR${NC}"
+    echo "Removing old installation..."
+    rm -rf "$INSTALL_DIR"
+fi
+
+# Create installation directory
+mkdir -p "$INSTALL_DIR"
+
+# Copy application files
+echo "📋 Copying application files..."
+cp -r "$SCRIPT_DIR/app" "$INSTALL_DIR/"
+cp "$SCRIPT_DIR/Dockerfile" "$INSTALL_DIR/"
+cp "$SCRIPT_DIR/requirements.txt" "$INSTALL_DIR/"
+mkdir -p "$INSTALL_DIR/scripts"
+cp "$SCRIPT_DIR/scripts/chrome-launcher.sh" "$INSTALL_DIR/scripts/"
+chmod +x "$INSTALL_DIR/scripts/chrome-launcher.sh"
+
+echo -e "${GREEN}✅ Files copied to $INSTALL_DIR${NC}"
+
+echo ""
 echo "🐳 Building Docker image..."
-cd "$SCRIPT_DIR"
+cd "$INSTALL_DIR"
 DOCKER_BUILDKIT=1 docker build -t isolated-chrome .
 
 echo ""
@@ -104,9 +129,26 @@ mkdir -p ~/.local/share/applications
 echo ""
 echo "🔧 Installing systemd service..."
 
-# Create a temporary service file with the correct user
+# Create systemd service file with correct paths
 SERVICE_FILE="/tmp/chrome-manager-$USER.service"
-sed "s/%u/$USER/g" "$SYSTEMD_DIR/chrome-manager.service" > "$SERVICE_FILE"
+cat > "$SERVICE_FILE" <<EOF
+[Unit]
+Description=Chrome Isolation Manager Web Interface
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=$INSTALL_DIR/app
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/python3 $INSTALL_DIR/app/app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
 
 # Install the service
 sudo cp "$SERVICE_FILE" /etc/systemd/system/chrome-manager.service
@@ -135,6 +177,7 @@ echo "=================================================="
 echo -e "${GREEN}✅ Installation Complete!${NC}"
 echo "=================================================="
 echo ""
+echo "📍 Installation Directory: $INSTALL_DIR"
 echo "🌐 Web Interface: http://localhost:5000"
 echo "📁 Profiles Directory: ~/Chrome"
 echo ""
@@ -147,6 +190,7 @@ echo "Useful Commands:"
 echo "  • View logs: sudo journalctl -u chrome-manager.service -f"
 echo "  • Restart service: sudo systemctl restart chrome-manager.service"
 echo "  • Stop service: sudo systemctl stop chrome-manager.service"
+echo "  • Uninstall: Run ./uninstall.sh from the source directory"
 echo ""
 echo "Opening web interface in 3 seconds..."
 sleep 3

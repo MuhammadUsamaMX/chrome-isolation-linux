@@ -1,102 +1,112 @@
 #!/bin/bash
 
 # Chrome Isolation Manager - Uninstaller
-# Safely removes all components installed by install.sh
+# Removes all installed components
 
 set -e
 
+echo "🗑️  Chrome Isolation Manager - Uninstaller"
+echo "=========================================="
+echo ""
+
+# Color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m'
+NC='\033[0m' # No Color
 
-echo "🧹 Chrome Isolation Manager - Uninstall Script"
-echo "=============================================="
-echo ""
+# Installation directory
+INSTALL_DIR="$HOME/.local/share/chrome-isolation-manager"
 
-# Check if root – SHOULD be root for uninstall
-if [ "$EUID" -ne 0 ]; then
-    echo -e "${YELLOW}⚠️  Please run this script as root (sudo)${NC}"
-    exit 1
-fi
-
-# Detect install path (script location)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-SERVICE_NAME="chrome-manager.service"
-APP_DIR="$SCRIPT_DIR/app"
-PROFILE_DIR="/home/$SUDO_USER/Chrome"
-DESKTOP_DIR="/home/$SUDO_USER/.local/share/applications"
-DOCKER_IMAGE="isolated-chrome"
-
-echo -e "${YELLOW}⚠️  This will REMOVE Chrome Isolation Manager completely.${NC}"
-echo -e "Including:"
+# Confirm uninstallation
+echo -e "${YELLOW}⚠️  This will remove:${NC}"
+echo "  • Chrome Isolation Manager application"
 echo "  • Systemd service"
-echo "  • Docker image ($DOCKER_IMAGE)"
-echo "  • ~/Chrome profiles"
-echo "  • Desktop launcher entries"
-echo "  • App folder (optional)"
+echo "  • Desktop entries for all profiles"
+echo "  • Docker containers (running profiles will be stopped)"
 echo ""
-
-read -rp "Are you sure? (y/N): " CONFIRM
-if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
-    echo "❌ Uninstall cancelled."
+echo -e "${YELLOW}⚠️  Your profile data in ~/Chrome will NOT be deleted${NC}"
+echo ""
+read -p "Are you sure you want to uninstall? (y/N): " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Uninstallation cancelled."
     exit 0
 fi
 
 echo ""
-echo "🛑 Stopping systemd service..."
-systemctl stop $SERVICE_NAME 2>/dev/null || true
+echo "🛑 Stopping and disabling service..."
+if systemctl is-active --quiet chrome-manager.service; then
+    sudo systemctl stop chrome-manager.service
+    echo -e "${GREEN}✅ Service stopped${NC}"
+fi
 
-echo "❌ Disabling systemd service..."
-systemctl disable $SERVICE_NAME 2>/dev/null || true
-
-echo "🗑 Removing systemd file..."
-rm -f /etc/systemd/system/$SERVICE_NAME
-systemctl daemon-reload
-
-echo ""
-echo "🐳 Removing Docker containers & image..."
-docker stop isolated-chrome-container 2>/dev/null || true
-docker rm isolated-chrome-container 2>/dev/null || true
-docker rmi $DOCKER_IMAGE 2>/dev/null || true
-
-echo ""
-echo "🗑 Removing user Chrome profiles..."
-rm -rf "$PROFILE_DIR"
-
-echo "🗑 Removing desktop entries (*.desktop)..."
-find "$DESKTOP_DIR" -maxdepth 1 -name "chrome-isolated-*.desktop" -exec rm -f {} \;
-
-echo ""
-read -rp "Remove application folder as well? ($SCRIPT_DIR) (y/N): " REMOVE_APP
-if [[ "$REMOVE_APP" == "y" || "$REMOVE_APP" == "Y" ]]; then
-    rm -rf "$APP_DIR"
-    echo -e "${GREEN}✔ App folder removed.${NC}"
-else
-    echo -e "${YELLOW}Skipping app folder removal.${NC}"
+if systemctl is-enabled --quiet chrome-manager.service 2>/dev/null; then
+    sudo systemctl disable chrome-manager.service
+    echo -e "${GREEN}✅ Service disabled${NC}"
 fi
 
 echo ""
-read -rp "Remove python dependencies installed via apt? (python3-flask python3-docker) (y/N): " REMOVE_PY
-if [[ "$REMOVE_PY" == "y" || "$REMOVE_PY" == "Y" ]]; then
-    apt remove -y python3-flask python3-docker
-    echo -e "${GREEN}✔ Python packages removed.${NC}"
-else
-    echo -e "${YELLOW}Skipping Python package removal.${NC}"
+echo "🗑️  Removing systemd service..."
+if [ -f "/etc/systemd/system/chrome-manager.service" ]; then
+    sudo rm /etc/systemd/system/chrome-manager.service
+    sudo systemctl daemon-reload
+    echo -e "${GREEN}✅ Service file removed${NC}"
 fi
 
 echo ""
-echo "🧼 Cleaning leftover files..."
-rm -rf /tmp/chrome-manager-* 2>/dev/null || true
+echo "🐳 Stopping and removing Docker containers..."
+CONTAINERS=$(docker ps -a --filter "name=chrome-" --format "{{.Names}}" 2>/dev/null || true)
+if [ -n "$CONTAINERS" ]; then
+    echo "$CONTAINERS" | while read container; do
+        echo "  Removing $container..."
+        docker rm -f "$container" > /dev/null 2>&1 || true
+    done
+    echo -e "${GREEN}✅ Containers removed${NC}"
+else
+    echo "  No containers found"
+fi
 
 echo ""
-echo "=============================================="
-echo -e "${GREEN}✔ Uninstall Complete!${NC}"
-echo "=============================================="
-echo ""
-echo "If you want to reinstall later, just run:"
-echo "  ./install.sh"
-echo ""
+echo "🖼️  Removing Docker image..."
+if docker images | grep -q "isolated-chrome"; then
+    docker rmi isolated-chrome > /dev/null 2>&1 || true
+    echo -e "${GREEN}✅ Docker image removed${NC}"
+else
+    echo "  Image not found"
+fi
 
-exit 0
+echo ""
+echo "📁 Removing desktop entries..."
+DESKTOP_ENTRIES=$(find ~/.local/share/applications -name "chrome-*.desktop" 2>/dev/null || true)
+if [ -n "$DESKTOP_ENTRIES" ]; then
+    echo "$DESKTOP_ENTRIES" | while read entry; do
+        echo "  Removing $(basename "$entry")..."
+        rm "$entry"
+    done
+    update-desktop-database ~/.local/share/applications > /dev/null 2>&1 || true
+    echo -e "${GREEN}✅ Desktop entries removed${NC}"
+else
+    echo "  No desktop entries found"
+fi
+
+echo ""
+echo "📂 Removing installation directory..."
+if [ -d "$INSTALL_DIR" ]; then
+    rm -rf "$INSTALL_DIR"
+    echo -e "${GREEN}✅ Installation directory removed${NC}"
+else
+    echo "  Installation directory not found"
+fi
+
+echo ""
+echo "=========================================="
+echo -e "${GREEN}✅ Uninstallation Complete!${NC}"
+echo "=========================================="
+echo ""
+echo "Your profile data is still available at: ~/Chrome"
+echo ""
+echo "To completely remove all data, run:"
+echo "  rm -rf ~/Chrome"
+echo ""
+echo "To reinstall, run ./install.sh"

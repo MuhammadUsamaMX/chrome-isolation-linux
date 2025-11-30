@@ -99,10 +99,33 @@ cd chrome-isolation-linux
 The installer will:
 1. ✅ Check system requirements
 2. 📦 Install Python dependencies (Flask, docker-py)
-3. 🐳 Build the Docker image
-4. 🔧 Set up systemd service
-5. 🌐 Start the web interface
-6. 🎉 Open `http://localhost:5000` automatically
+3. 📁 Copy files to `~/.local/share/chrome-isolation-manager`
+4. 🐳 Build the Docker image
+5. 🔧 Set up systemd service
+6. 🌐 Start the web interface
+7. 🎉 Open `http://localhost:5000` automatically
+
+**Installation Location**: `~/.local/share/chrome-isolation-manager`
+
+After installation, you can safely delete the cloned repository - the application runs from the installation directory.
+
+### Uninstallation
+
+```bash
+# From the cloned repository directory
+./uninstall.sh
+```
+
+This will remove:
+- Application files from `~/.local/share/chrome-isolation-manager`
+- Systemd service
+- Docker containers and image
+- Desktop entries
+
+**Note**: Your profile data in `~/Chrome` will be preserved. To remove it:
+```bash
+rm -rf ~/Chrome
+```
 
 ### Manual Installation
 
