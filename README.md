@@ -219,6 +219,7 @@ chrome-isolation/
 │   └── chrome-manager.service # System service
 ├── Dockerfile                 # Chrome container image
 ├── install.sh                 # Automated installer
+├── uninstall.sh                 # Automated uninstaller
 └── README.md                  # This file
 ```
 
