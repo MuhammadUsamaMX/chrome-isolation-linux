@@ -1,286 +1,292 @@
-// Chrome Isolation Manager - Frontend JavaScript
-
-let profiles = [];
-
-// Load profiles on page load
-document.addEventListener('DOMContentLoaded', () => {
-    refreshProfiles();
-    // Auto-refresh every 5 seconds
-    setInterval(refreshProfiles, 5000);
-});
-
-async function refreshProfiles() {
-    try {
-        const response = await fetch('/api/profiles');
-        const data = await response.json();
-        profiles = data.profiles;
-        renderProfiles();
-    } catch (error) {
-        console.error('Error fetching profiles:', error);
-        showError('Failed to load profiles');
+// Minimalist React-like App
+class App {
+    constructor() {
+        this.profiles = [];
+        this.state = { loading: false };
+        this.init();
     }
-}
 
-function renderProfiles() {
-    const container = document.getElementById('profiles-container');
+    init() {
+        this.setupEventListeners();
+        this.loadProfiles();
+        setInterval(() => this.loadProfiles(), 5000);
+    }
 
-    if (profiles.length === 0) {
-        container.innerHTML = `
+    setupEventListeners() {
+        document.getElementById('createBtn').addEventListener('click', () => this.showModal());
+        document.getElementById('refreshBtn').addEventListener('click', () => this.loadProfiles());
+        document.getElementById('closeModal').addEventListener('click', () => this.hideModal());
+        document.getElementById('cancelBtn').addEventListener('click', () => this.hideModal());
+        document.getElementById('modalBackdrop').addEventListener('click', () => this.hideModal());
+        document.getElementById('createForm').addEventListener('submit', (e) => this.handleCreate(e));
+    }
+
+    async loadProfiles() {
+        try {
+            this.setState({ loading: true });
+            const res = await fetch('/api/profiles');
+            const data = await res.json();
+            this.profiles = data.profiles || [];
+            this.render();
+        } catch (error) {
+            this.showToast('Failed to load profiles', 'error');
+        } finally {
+            this.setState({ loading: false });
+        }
+    }
+
+    setState(newState) {
+        this.state = { ...this.state, ...newState };
+        this.render();
+    }
+
+    render() {
+        const container = document.getElementById('profiles-container');
+        
+        if (this.state.loading && this.profiles.length === 0) {
+            container.innerHTML = this.renderLoading();
+            return;
+        }
+
+        if (this.profiles.length === 0) {
+            container.innerHTML = this.renderEmpty();
+            return;
+        }
+
+        container.innerHTML = this.profiles.map(p => this.renderProfileCard(p)).join('');
+        this.attachCardListeners();
+    }
+
+    renderLoading() {
+        return `
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading profiles...</p>
+            </div>
+        `;
+    }
+
+    renderEmpty() {
+        return `
             <div class="empty-state">
-                <h3>📭 No Profiles Yet</h3>
-                <p>Create your first isolated Chrome profile to get started</p>
-                <button class="btn btn-primary" onclick="showCreateModal()">
-                    ➕ Create Profile
+                <h3>No profiles</h3>
+                <p>Create your first isolated Chrome profile</p>
+                <button class="btn btn-primary" onclick="app.showModal()">
+                    New Profile
                 </button>
             </div>
         `;
-        return;
     }
 
-    container.innerHTML = profiles.map(profile => `
-        <div class="profile-card">
-            <div class="profile-header">
-                <div class="profile-name">
-                    🌐 ${escapeHtml(profile.name)}
+    renderProfileCard(profile) {
+        const statusText = {
+            'running': 'Running',
+            'exited': 'Stopped',
+            'not_found': 'Not Started'
+        }[profile.status] || profile.status;
+
+        return `
+            <div class="profile-card" data-name="${this.escape(profile.name)}">
+                <div class="profile-header">
+                    <div class="profile-name">${this.escape(profile.name)}</div>
+                    <span class="status-badge status-${profile.status}">${statusText}</span>
                 </div>
-                <span class="status-badge status-${profile.status}">
-                    ${getStatusText(profile.status)}
-                </span>
+                <div class="profile-info">
+                    <div>Storage: ${profile.size_mb} MB</div>
+                    <div>Desktop: ${profile.has_desktop_entry ? 'Yes' : 'No'}</div>
+                </div>
+                <div class="profile-actions">
+                    ${profile.status === 'running'
+                        ? `<button class="btn btn-danger btn-sm" data-action="stop">Stop</button>`
+                        : `<button class="btn btn-success btn-sm" data-action="start">Start</button>`
+                    }
+                    <button class="btn btn-secondary btn-sm" data-action="export">Export</button>
+                    <button class="btn btn-danger btn-sm" data-action="delete">Delete</button>
+                </div>
             </div>
-            
-            <div class="profile-info">
-                <div>💾 Storage: ${profile.size_mb} MB</div>
-                <div>🖥️ Desktop Entry: ${profile.has_desktop_entry ? '✅ Yes' : '❌ No'}</div>
-            </div>
-            
-            <div class="profile-actions">
-                ${profile.status === 'running'
-            ? `<button class="btn btn-danger btn-sm" onclick="stopProfile('${escapeHtml(profile.name)}')">⏹️ Stop</button>`
-            : `<button class="btn btn-success btn-sm" onclick="startProfile('${escapeHtml(profile.name)}')">▶️ Start</button>`
-        }
-                <button class="btn btn-secondary btn-sm" onclick="exportProfile('${escapeHtml(profile.name)}')">📤 Export</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteProfile('${escapeHtml(profile.name)}')">🗑️ Delete</button>
-            </div>
-        </div>
-    `).join('');
-}
-
-function getStatusText(status) {
-    const statusMap = {
-        'running': '🟢 Running',
-        'exited': '🔴 Stopped',
-        'not_found': '⚪ Not Started'
-    };
-    return statusMap[status] || status;
-}
-
-function showCreateModal() {
-    document.getElementById('createModal').style.display = 'block';
-    document.getElementById('profileName').focus();
-}
-
-function closeCreateModal() {
-    document.getElementById('createModal').style.display = 'none';
-    document.getElementById('createForm').reset();
-}
-
-// Close modal when clicking outside
-window.onclick = function (event) {
-    const modal = document.getElementById('createModal');
-    if (event.target === modal) {
-        closeCreateModal();
-    }
-}
-
-async function createProfile(event) {
-    event.preventDefault();
-
-    const profileName = document.getElementById('profileName').value.trim();
-    const profileLocation = document.getElementById('profileLocation').value.trim();
-
-    if (!profileName) {
-        showError('Profile name is required');
-        return;
+        `;
     }
 
-    try {
-        showLoading(true);
-        const requestBody = { name: profileName };
-
-        // Add location if provided
-        if (profileLocation) {
-            requestBody.location = profileLocation;
-        }
-
-        const response = await fetch('/api/profiles', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
+    attachCardListeners() {
+        document.querySelectorAll('.profile-card').forEach(card => {
+            const name = card.dataset.name;
+            card.querySelectorAll('[data-action]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const action = e.target.dataset.action;
+                    this.handleAction(action, name);
+                });
+            });
         });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            showSuccess(`Profile "${profileName}" created successfully!`);
-            closeCreateModal();
-            await refreshProfiles();
-        } else {
-            showError(data.error || 'Failed to create profile');
-        }
-    } catch (error) {
-        console.error('Error creating profile:', error);
-        showError('Failed to create profile');
-    } finally {
-        showLoading(false);
     }
-}
 
-async function startProfile(profileName) {
-    try {
-        showLoading(true);
-        const response = await fetch(`/api/profiles/${encodeURIComponent(profileName)}/start`, {
-            method: 'POST'
+    async handleAction(action, name) {
+        switch (action) {
+            case 'start':
+                await this.startProfile(name);
+                break;
+            case 'stop':
+                await this.stopProfile(name);
+                break;
+            case 'delete':
+                await this.deleteProfile(name);
+                break;
+            case 'export':
+                this.exportProfile(name);
+                break;
+        }
+    }
+
+    async startProfile(name) {
+        try {
+            const res = await fetch(`/api/profiles/${encodeURIComponent(name)}/start`, {
+                method: 'POST'
+            });
+            const data = await res.json();
+            if (res.ok) {
+                this.showToast(`Profile "${name}" started`, 'success');
+                await this.loadProfiles();
+            } else {
+                this.showToast(data.error || 'Failed to start', 'error');
+            }
+        } catch (error) {
+            this.showToast('Failed to start profile', 'error');
+        }
+    }
+
+    async stopProfile(name) {
+        try {
+            const res = await fetch(`/api/profiles/${encodeURIComponent(name)}/stop`, {
+                method: 'POST'
+            });
+            const data = await res.json();
+            if (res.ok) {
+                this.showToast(`Profile "${name}" stopped`, 'success');
+                await this.loadProfiles();
+            } else {
+                this.showToast(data.error || 'Failed to stop', 'error');
+            }
+        } catch (error) {
+            this.showToast('Failed to stop profile', 'error');
+        }
+    }
+
+    async deleteProfile(name) {
+        const confirmed = await this.showConfirm(
+            'Delete Profile',
+            `Are you sure you want to delete profile "${name}"? This action cannot be undone.`
+        );
+        if (!confirmed) return;
+
+        try {
+            const res = await fetch(`/api/profiles/${encodeURIComponent(name)}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (res.ok) {
+                this.showToast(`Profile "${name}" deleted`, 'success');
+                await this.loadProfiles();
+            } else {
+                this.showToast(data.error || 'Failed to delete', 'error');
+            }
+        } catch (error) {
+            this.showToast('Failed to delete profile', 'error');
+        }
+    }
+
+    showConfirm(title, message) {
+        return new Promise((resolve) => {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            const modal = document.getElementById('confirmModal');
+            modal.classList.add('active');
+
+            const handleConfirm = () => {
+                modal.classList.remove('active');
+                document.getElementById('confirmOk').removeEventListener('click', handleConfirm);
+                document.getElementById('confirmCancel').removeEventListener('click', handleCancel);
+                document.getElementById('confirmBackdrop').removeEventListener('click', handleCancel);
+                resolve(true);
+            };
+
+            const handleCancel = () => {
+                modal.classList.remove('active');
+                document.getElementById('confirmOk').removeEventListener('click', handleConfirm);
+                document.getElementById('confirmCancel').removeEventListener('click', handleCancel);
+                document.getElementById('confirmBackdrop').removeEventListener('click', handleCancel);
+                resolve(false);
+            };
+
+            document.getElementById('confirmOk').addEventListener('click', handleConfirm);
+            document.getElementById('confirmCancel').addEventListener('click', handleCancel);
+            document.getElementById('confirmBackdrop').addEventListener('click', handleCancel);
         });
+    }
 
-        const data = await response.json();
+    exportProfile(name) {
+        window.location.href = `/api/profiles/${encodeURIComponent(name)}/export`;
+    }
 
-        if (response.ok) {
-            showSuccess(`Profile "${profileName}" started!`);
-            await refreshProfiles();
-        } else {
-            showError(data.error || 'Failed to start profile');
+    showModal() {
+        document.getElementById('modal').classList.add('active');
+        document.getElementById('profileName').focus();
+    }
+
+    hideModal() {
+        document.getElementById('modal').classList.remove('active');
+        document.getElementById('createForm').reset();
+    }
+
+    async handleCreate(e) {
+        e.preventDefault();
+        const name = document.getElementById('profileName').value.trim();
+        const location = document.getElementById('profileLocation').value.trim();
+
+        if (!name) {
+            this.showToast('Profile name is required', 'error');
+            return;
         }
-    } catch (error) {
-        console.error('Error starting profile:', error);
-        showError('Failed to start profile');
-    } finally {
-        showLoading(false);
-    }
-}
 
-async function stopProfile(profileName) {
-    try {
-        showLoading(true);
-        const response = await fetch(`/api/profiles/${encodeURIComponent(profileName)}/stop`, {
-            method: 'POST'
-        });
+        try {
+            const body = { name };
+            if (location) body.location = location;
 
-        const data = await response.json();
+            const res = await fetch('/api/profiles', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
 
-        if (response.ok) {
-            showSuccess(`Profile "${profileName}" stopped!`);
-            await refreshProfiles();
-        } else {
-            showError(data.error || 'Failed to stop profile');
+            const data = await res.json();
+            if (res.ok) {
+                this.showToast(`Profile "${name}" created`, 'success');
+                this.hideModal();
+                await this.loadProfiles();
+            } else {
+                this.showToast(data.error || 'Failed to create', 'error');
+            }
+        } catch (error) {
+            this.showToast('Failed to create profile', 'error');
         }
-    } catch (error) {
-        console.error('Error stopping profile:', error);
-        showError('Failed to stop profile');
-    } finally {
-        showLoading(false);
+    }
+
+    showToast(message, type = 'success') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `
+            <span class="toast-message">${this.escape(message)}</span>
+            <span class="toast-close" onclick="this.parentElement.remove()">×</span>
+        `;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
+
+    escape(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 }
 
-async function deleteProfile(profileName) {
-    if (!confirm(`Are you sure you want to delete profile "${profileName}"?\n\nThis will remove all data and cannot be undone.`)) {
-        return;
-    }
-
-    try {
-        showLoading(true);
-        const response = await fetch(`/api/profiles/${encodeURIComponent(profileName)}`, {
-            method: 'DELETE'
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            showSuccess(`Profile "${profileName}" deleted!`);
-            await refreshProfiles();
-        } else {
-            showError(data.error || 'Failed to delete profile');
-        }
-    } catch (error) {
-        console.error('Error deleting profile:', error);
-        showError('Failed to delete profile');
-    } finally {
-        showLoading(false);
-    }
-}
-
-function exportProfile(profileName) {
-    window.location.href = `/api/profiles/${encodeURIComponent(profileName)}/export`;
-}
-
-async function importProfile(input) {
-    const file = input.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-        showLoading(true);
-        const response = await fetch('/api/profiles/import', {
-            method: 'POST',
-            body: formData
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            showSuccess(`Profile "${data.name}" imported successfully!`);
-            await refreshProfiles();
-        } else {
-            showError(data.error || 'Failed to import profile');
-        }
-    } catch (error) {
-        console.error('Error importing profile:', error);
-        showError('Failed to import profile');
-    } finally {
-        showLoading(false);
-        input.value = ''; // Reset input
-    }
-}
-
-function showLoading(show) {
-    document.getElementById('loading').style.display = show ? 'block' : 'none';
-}
-
-function showToast(message, type = 'success') {
-    const container = document.getElementById('toastContainer');
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-
-    const icon = type === 'success' ? '✅' : '❌';
-
-    toast.innerHTML = `
-        <span class="toast-icon">${icon}</span>
-        <span class="toast-message">${escapeHtml(message)}</span>
-        <span class="toast-close" onclick="this.parentElement.remove()">×</span>
-    `;
-
-    container.appendChild(toast);
-
-    // Auto-remove after 4 seconds
-    setTimeout(() => {
-        toast.style.animation = 'slideOutRight 0.4s ease';
-        setTimeout(() => toast.remove(), 400);
-    }, 4000);
-}
-
-function showSuccess(message) {
-    showToast(message, 'success');
-}
-
-function showError(message) {
-    showToast(message, 'error');
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+// Initialize app
+const app = new App();

@@ -28,11 +28,13 @@ Perfect for:
 ## ✨ Features
 
 ### 🌐 Modern Web Dashboard
+- **Completely revamped modern UI** with dark theme and glassmorphism effects
 - Intuitive, responsive interface for managing all your profiles
 - Real-time status updates (auto-refresh every 5s)
-- Light minimalistic theme with smooth animations
-- Toast notifications instead of intrusive alerts
-- Profile cards with status indicators and storage usage
+- Beautiful gradient backgrounds and smooth animations
+- Toast notifications and modal dialogs (no browser alerts)
+- Modern profile cards with status indicators and storage usage
+- React-like component architecture for maintainability
 
 ### 🥷 Advanced Stealth & Fingerprinting Evasion
 - **Per-Profile Hardware Fingerprinting** - Each profile appears as a unique physical machine
@@ -71,13 +73,15 @@ Perfect for:
 - Downloads folder automatically created
 - Profile size monitoring in the dashboard
 
-### 🎨 Premium UI/UX
-- Light, minimalistic design with custom background support
+### 🎨 Modern UI/UX Design
+- **Completely revamped modern interface** with dark theme
+- Glassmorphism effects and backdrop blur
+- Animated gradient backgrounds
 - Smooth animations and transitions
-- Ripple effects on button clicks
-- Card hover animations with top border reveal
-- Modal slide-in effects
+- Modern card designs with hover effects
+- Elegant modal dialogs with confirmation popups
 - Auto-dismissing toast notifications
+- Professional React-like component structure
 
 ### ⚙️ One-Command Installation
 - Automated setup with dependency checking
