@@ -5,11 +5,16 @@ import docker
 import os
 import subprocess
 from config import DOCKER_IMAGE_NAME, CONTAINER_PREFIX, CHROME_PROFILES_DIR
+from desktop_manager import DesktopManager
 
 class DockerManager:
     def __init__(self):
         self.client = docker.from_env()
         self.ensure_image_exists()
+        # Initialize desktop manager for creating desktop entries
+        launcher_script = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
+                                       'scripts', 'chrome-launcher.sh')
+        self.desktop_mgr = DesktopManager(launcher_script)
     
     def ensure_image_exists(self):
         """Check if Docker image exists, build if missing"""
@@ -113,20 +118,35 @@ class DockerManager:
             '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'},
             f'/run/user/{user_id}/pulse': {'bind': '/run/user/1000/pulse', 'mode': 'rw'},
             pulse_cookie: {'bind': '/home/chrome/.config/pulse/cookie', 'mode': 'ro'},
-            profile_dir: {'bind': '/home/chrome/.config/google-chrome', 'mode': 'rw'},
+            profile_dir: {'bind': '/home/chrome/.config/chromium', 'mode': 'rw'},
             downloads_dir: {'bind': '/home/chrome/Downloads', 'mode': 'rw'}
         }
         
         environment = {
             'DISPLAY': os.environ.get('DISPLAY', ':0'),
             'PULSE_SERVER': 'unix:/run/user/1000/pulse/native',
-            'PULSE_COOKIE': '/home/chrome/.config/pulse/cookie'
+            'PULSE_COOKIE': '/home/chrome/.config/pulse/cookie',
+            'CHROME_PROFILE': profile_name,  # Pass profile name for stealth fingerprinting
+            'TZ': 'UTC',  # Will be overridden by stealth scripts
+            'LANG': 'en_US.UTF-8',
+            'LC_ALL': 'en_US.UTF-8'
         }
         
         devices = ['/dev/dri']
         
+        # Get host DNS servers for proper network resolution
+        dns_servers = self._get_host_dns_servers()
+        
         # Automatically setup X11/Wayland access
         self._setup_display_access()
+        
+        # Create desktop entry if it doesn't exist
+        if not self.desktop_mgr.desktop_entry_exists(profile_name):
+            try:
+                self.desktop_mgr.create_desktop_entry(profile_name)
+                print(f"✅ Created desktop entry for profile: {profile_name}")
+            except Exception as e:
+                print(f"⚠️  Failed to create desktop entry: {e}")
         
         # Create and start container
         container = self.client.containers.run(
@@ -134,15 +154,15 @@ class DockerManager:
             name=container_name,
             detach=True,
             ipc_mode='host',
-            cap_add=['SYS_ADMIN'],
+            cap_add=['SYS_ADMIN', 'SYS_PTRACE', 'NET_ADMIN'],
             volumes=volumes,
             environment=environment,
             devices=devices,
             group_add=['audio', 'video'],
             security_opt=['seccomp=unconfined'],
+            dns=dns_servers,
+            dns_opt=['ndots:0'],
             command=[
-                '--window-position=0,0',
-                '--window-size=1280,800',
                 f'--class=chrome-{profile_name}'
             ]
         )
@@ -166,6 +186,19 @@ class DockerManager:
             return {"status": "removed"}
         except docker.errors.NotFound:
             return {"status": "not_found"}
+    
+    def _get_host_dns_servers(self):
+        """Get DNS servers - use Docker bridge gateway to access host DNS"""
+        # Use Docker bridge gateway (172.17.0.1) to access host's DNS resolver
+        # This allows containers to use the host's DNS configuration
+        dns_servers = ['172.17.0.1']
+        
+        # Add fallback DNS servers for reliability
+        dns_servers.extend(['8.8.8.8', '8.8.4.4'])
+        
+        print(f"✅ Using Docker bridge gateway DNS (172.17.0.1) with fallbacks: {', '.join(dns_servers[1:])}")
+        
+        return dns_servers
     
     def _setup_display_access(self):
         """Setup X11/Wayland display access for Docker containers"""

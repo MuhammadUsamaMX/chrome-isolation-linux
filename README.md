@@ -34,16 +34,34 @@ Perfect for:
 - Toast notifications instead of intrusive alerts
 - Profile cards with status indicators and storage usage
 
+### 🥷 Advanced Stealth & Fingerprinting Evasion
+- **Per-Profile Hardware Fingerprinting** - Each profile appears as a unique physical machine
+  - Randomized CPU cores (2-16), RAM amounts (4GB-32GB)
+  - Rotating GPU models (NVIDIA, AMD, Intel)
+  - Variable screen resolutions and MAC addresses
+  - Different geographic timezones per profile
+- **Container Detection Evasion** - Hides all Docker/container traces
+  - Fake hostnames and system identifiers
+  - Removed container environment variables
+  - Hidden container process signatures
+- **Dynamic User-Agent Rotation** - Realistic browser fingerprints
+  - Windows, macOS, and Linux user agents
+  - Recent Chrome versions (118.x, 119.x, 120.x)
+  - Randomized per profile
+- **WebGL/Canvas/Audio Fingerprinting Blocked** - Maximum privacy protection
+
 ### 🔐 Complete Isolation
 - Each profile runs in a separate Docker container
 - Filesystem isolation (only profile directory mounted)
 - No access to host system files
 - Containers run as non-root user (UID 1000)
-- Chrome sandbox enabled with proper capabilities
+- Ultra-lightweight Alpine Linux base (~200MB vs ~500MB Ubuntu)
+- Optimized single-layer Docker builds for speed
 
 ### 🖥️ Desktop Integration
 - Profiles appear as native apps in your application menu
 - Desktop entries: "Chrome (ProfileName)"
+- **Auto-creation** - Desktop entries created automatically when containers start
 - Click any profile icon to automatically start its container
 - Seamless window integration with your desktop environment
 
@@ -73,8 +91,10 @@ Perfect for:
 - ✅ GPU acceleration (AMD/Intel/NVIDIA)
 - ✅ Webcam support
 - ✅ Custom Chrome flags
+- ✅ **Host DNS Integration** - Uses Docker bridge gateway (172.17.0.1) for proper DNS resolution
 - ✅ **Export/Import Profiles** - Backup and restore profiles easily (ZIP format)
 - ✅ **Automatic Display Setup** - Auto-configures X11/Wayland access
+- ✅ **Sandbox Configuration** - Properly configured for Docker containers
 
 ## 📋 Requirements
 
@@ -292,6 +312,9 @@ chrome-isolation/
 - ✅ Sandboxed Chrome with proper capabilities
 - ✅ Audio/GPU passthrough without host access
 - ✅ No cross-profile data contamination
+- ✅ **Stealth Fingerprinting** - Each profile appears as unique physical machine
+- ✅ **Container Detection Evasion** - Websites cannot detect Docker/VM environment
+- ✅ **Hardware Spoofing** - Randomized CPU, RAM, GPU, screen resolution per profile
 
 ## 🐛 Troubleshooting
 

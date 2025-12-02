@@ -80,6 +80,11 @@ echo "Launching Isolated Chrome (Profile: $PROFILE_NAME)..."
 # - Added --name with timestamp to allow multiple instances if needed (or handle cleanup)
 # - Added --ipc=host (Helps with performance/shared memory)
 
+# Use Docker bridge gateway (172.17.0.1) to access host's DNS resolver
+# This allows containers to use the host's DNS configuration
+DNS_SERVERS="172.17.0.1 8.8.8.8 8.8.4.4"
+echo "✅ Using Docker bridge gateway DNS (172.17.0.1) with fallbacks: 8.8.8.8 8.8.4.4"
+
 # Clean up previous container if it exists (optional, or we can just restart it)
 docker rm -f "chrome-$PROFILE_NAME" > /dev/null 2>&1 || true
 
@@ -87,8 +92,15 @@ docker run -d \
     --name "chrome-$PROFILE_NAME" \
     --ipc=host \
     --cap-add=SYS_ADMIN \
+    --cap-add=SYS_PTRACE \
+    --cap-add=NET_ADMIN \
+    $(for dns in $DNS_SERVERS; do echo "--dns=$dns"; done) \
+    --dns-opt=ndots:0 \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
     -e DISPLAY="$DISPLAY" \
+    -e CHROME_PROFILE="$PROFILE_NAME" \
+    -e LANG="en_US.UTF-8" \
+    -e LC_ALL="en_US.UTF-8" \
     -v /run/user/$(id -u)/pulse:/run/user/1000/pulse \
     -v "$PULSE_COOKIE":/home/chrome/.config/pulse/cookie \
     -e PULSE_SERVER=unix:/run/user/1000/pulse/native \
@@ -96,12 +108,10 @@ docker run -d \
     --device /dev/dri \
     --group-add audio \
     --group-add video \
-    -v "$PROFILE_DIR":/home/chrome/.config/google-chrome \
+    -v "$PROFILE_DIR":/home/chrome/.config/chromium \
     -v "$DOWNLOADS_DIR":/home/chrome/Downloads \
     --security-opt seccomp=unconfined \
     $IMAGE_NAME \
-    --window-position=0,0 \
-    --window-size=1280,800 \
     --class="chrome-$PROFILE_NAME"
 
 echo "Container chrome-$PROFILE_NAME started."
