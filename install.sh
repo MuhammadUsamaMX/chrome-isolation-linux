@@ -127,6 +127,33 @@ mkdir -p ~/Chrome
 mkdir -p ~/.local/share/applications
 
 echo ""
+echo "🔧 Configuring X11 access..."
+if command -v xhost &> /dev/null; then
+    xhost +local:docker
+    echo -e "${GREEN}✅ X11 access configured${NC}"
+else
+    echo -e "${YELLOW}⚠️  xhost not found - X11 access may not work${NC}"
+fi
+
+echo ""
+echo "🚀 Setting up autostart..."
+AUTOSTART_DIR="$HOME/.config/autostart"
+mkdir -p "$AUTOSTART_DIR"
+
+cat > "$AUTOSTART_DIR/chrome-isolation-startup.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Chrome Isolation Startup
+Comment=Configure X11 access for Chrome Isolation
+Exec=$INSTALL_DIR/scripts/startup.sh
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+EOF
+
+echo -e "${GREEN}✅ Autostart entry created${NC}"
+
+echo ""
 echo "🔧 Installing systemd service..."
 
 # Create systemd service file with correct paths

@@ -177,10 +177,17 @@ class DockerManager:
         
         # Setup X11 access (works for both X11 and XWayland)
         try:
-            subprocess.run(['xhost', '+local:docker'], 
+            # We explicitly run this every time to ensure permissions are correct
+            result = subprocess.run(['xhost', '+local:docker'], 
                           capture_output=True, 
+                          text=True,
                           check=False)
-            print("✅ X11 access configured for Docker")
+            
+            if result.returncode == 0:
+                print("✅ X11 access configured for Docker")
+            else:
+                print(f"⚠️  Failed to configure X11 access: {result.stderr}")
+                
         except FileNotFoundError:
             print("⚠️  xhost not found - X11 access may not work")
         
