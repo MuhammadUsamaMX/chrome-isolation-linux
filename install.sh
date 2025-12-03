@@ -112,7 +112,9 @@ cp "$SCRIPT_DIR/Dockerfile" "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/requirements.txt" "$INSTALL_DIR/"
 mkdir -p "$INSTALL_DIR/scripts"
 cp "$SCRIPT_DIR/scripts/chrome-launcher.sh" "$INSTALL_DIR/scripts/"
+cp "$SCRIPT_DIR/scripts/startup.sh" "$INSTALL_DIR/scripts/"
 chmod +x "$INSTALL_DIR/scripts/chrome-launcher.sh"
+chmod +x "$INSTALL_DIR/scripts/startup.sh"
 
 echo -e "${GREEN}✅ Files copied to $INSTALL_DIR${NC}"
 
