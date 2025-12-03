@@ -79,6 +79,21 @@ class DockerManager:
         except docker.errors.NotFound:
             return "not_found"
     
+    def _get_device_group_ids(self):
+        """Get GIDs for video and render groups to allow GPU access"""
+        gids = []
+        try:
+            import grp
+            for group in ['video', 'render']:
+                try:
+                    gid = grp.getgrnam(group).gr_gid
+                    gids.append(gid)
+                except KeyError:
+                    pass
+        except Exception as e:
+            print(f"⚠️  Failed to get device group IDs: {e}")
+        return gids
+
     def start_container(self, profile_name):
         """Start a Chrome container for the profile"""
         container_name = self.get_container_name(profile_name)
@@ -140,6 +155,10 @@ class DockerManager:
         # Automatically setup X11/Wayland access
         self._setup_display_access()
         
+        # Get device group IDs for GPU access
+        device_gids = self._get_device_group_ids()
+        group_add = ['audio'] + device_gids
+        
         # Create desktop entry if it doesn't exist
         if not self.desktop_mgr.desktop_entry_exists(profile_name):
             try:
@@ -158,12 +177,13 @@ class DockerManager:
             volumes=volumes,
             environment=environment,
             devices=devices,
-            group_add=['audio', 'video'],
+            group_add=group_add,
             security_opt=['seccomp=unconfined'],
             dns=dns_servers,
             dns_opt=['ndots:0'],
             command=[
-                f'--class=chrome-{profile_name}'
+                f'--class=chrome-{profile_name}',
+                '--disable-gpu'
             ]
         )
         
