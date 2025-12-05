@@ -14,6 +14,8 @@ class App {
 
     setupEventListeners() {
         document.getElementById('createBtn').addEventListener('click', () => this.showModal());
+        document.getElementById('importBtn').addEventListener('click', () => this.triggerImport());
+        document.getElementById('importFileInput').addEventListener('change', (e) => this.handleImport(e));
         document.getElementById('refreshBtn').addEventListener('click', () => this.loadProfiles());
         document.getElementById('closeModal').addEventListener('click', () => this.hideModal());
         document.getElementById('cancelBtn').addEventListener('click', () => this.hideModal());
@@ -224,6 +226,39 @@ class App {
 
     exportProfile(name) {
         window.location.href = `/api/profiles/${encodeURIComponent(name)}/export`;
+    }
+
+    triggerImport() {
+        document.getElementById('importFileInput').click();
+    }
+
+    async handleImport(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            this.showToast('Importing profile...', 'success');
+            const res = await fetch('/api/profiles/import', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                this.showToast(`Profile "${data.name}" imported successfully`, 'success');
+                await this.loadProfiles();
+            } else {
+                this.showToast(data.error || 'Failed to import profile', 'error');
+            }
+        } catch (error) {
+            this.showToast('Failed to import profile', 'error');
+        } finally {
+            // Reset file input
+            e.target.value = '';
+        }
     }
 
     showModal() {

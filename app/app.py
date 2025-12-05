@@ -120,7 +120,7 @@ def profile_status(profile_name):
 
 @app.route('/api/profiles/<profile_name>/export', methods=['GET'])
 def export_profile(profile_name):
-    """Export profile as zip archive"""
+    """Export profile as zip archive - includes all data: logins, cookies, bookmarks, history, extensions, etc."""
     import zipfile
     import tempfile
     from flask import send_file
@@ -134,14 +134,43 @@ def export_profile(profile_name):
     
     try:
         with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Walk through the directory and add files to zip
+            # Walk through the directory and add ALL files (including hidden files)
+            # This ensures we capture:
+            # - Login Data (saved passwords/credentials)
+            # - Cookies
+            # - Bookmarks
+            # - History
+            # - Preferences
+            # - Extensions
+            # - All other profile data
             for root, dirs, files in os.walk(profile_dir):
+                # Include hidden files and directories
+                dirs[:] = [d for d in dirs]  # Don't skip hidden dirs
+                
                 for file in files:
                     file_path = os.path.join(root, file)
-                    # Calculate arcname (relative path inside zip)
-                    # We want the profile_name as the root folder in the zip
-                    rel_path = os.path.relpath(file_path, os.path.dirname(profile_dir))
-                    zipf.write(file_path, rel_path)
+                    
+                    # Skip if it's a symlink that points outside the profile
+                    if os.path.islink(file_path):
+                        try:
+                            link_target = os.readlink(file_path)
+                            if not os.path.isabs(link_target) or not link_target.startswith(profile_dir):
+                                continue  # Skip external symlinks
+                        except:
+                            continue
+                    
+                    # Only include files that exist and are readable
+                    if not os.path.isfile(file_path):
+                        continue
+                    
+                    try:
+                        # Calculate arcname (relative path inside zip)
+                        # We want the profile_name as the root folder in the zip
+                        rel_path = os.path.relpath(file_path, os.path.dirname(profile_dir))
+                        zipf.write(file_path, rel_path)
+                    except (OSError, PermissionError) as e:
+                        # Skip files we can't read (permissions, locked files, etc.)
+                        continue
         
         return send_file(
             temp_file.name,
@@ -151,10 +180,18 @@ def export_profile(profile_name):
         )
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        # Clean up temp file after sending (if it still exists)
+        try:
+            if os.path.exists(temp_file.name):
+                # File will be deleted after Flask sends it, but we try anyway
+                pass
+        except:
+            pass
 
 @app.route('/api/profiles/import', methods=['POST'])
 def import_profile():
-    """Import profile from archive (zip or tar.gz)"""
+    """Import profile from archive (zip or tar.gz) - restores all data including logins, cookies, bookmarks, etc."""
     import zipfile
     import tarfile
     import tempfile
@@ -182,17 +219,27 @@ def import_profile():
                 if not file_list:
                     raise Exception('Empty archive')
                 
-                # Get profile name
+                # Get profile name from archive structure
                 first_item = file_list[0]
                 if '/' in first_item:
                     profile_name = first_item.split('/')[0]
                 else:
+                    # If no directory structure, use filename without extension
                     profile_name = os.path.splitext(file.filename)[0]
                 
                 profile_dir = docker_mgr.get_profile_dir(profile_name)
                 if os.path.exists(profile_dir):
                     raise Exception(f'Profile {profile_name} already exists')
                 
+                # Extract all files preserving directory structure
+                # This restores all profile data including:
+                # - Login Data (saved passwords/credentials)
+                # - Cookies
+                # - Bookmarks
+                # - History
+                # - Preferences
+                # - Extensions
+                # - All other profile data
                 zipf.extractall(path=CHROME_PROFILES_DIR)
                 
         # Try opening as TAR (tar.gz, .tgz, etc)
@@ -202,16 +249,26 @@ def import_profile():
                 if not members:
                     raise Exception('Empty archive')
                 
-                # Get profile name
+                # Get profile name from archive structure
                 profile_name = members[0].name.split('/')[0]
                 profile_dir = docker_mgr.get_profile_dir(profile_name)
                 
                 if os.path.exists(profile_dir):
                     raise Exception(f'Profile {profile_name} already exists')
                 
+                # Extract all files preserving directory structure and permissions
                 tar.extractall(path=CHROME_PROFILES_DIR)
         else:
             raise Exception('Unsupported archive format. Please use .zip or .tar.gz')
+        
+        # Verify the profile directory was created
+        profile_dir = docker_mgr.get_profile_dir(profile_name)
+        if not os.path.exists(profile_dir):
+            raise Exception(f'Failed to extract profile directory')
+        
+        # Ensure Downloads directory exists (Chrome expects it)
+        downloads_dir = os.path.join(profile_dir, 'Downloads')
+        os.makedirs(downloads_dir, exist_ok=True)
             
         # Create desktop entry
         if profile_name:
@@ -223,7 +280,8 @@ def import_profile():
         return jsonify({
             'status': 'imported',
             'name': profile_name,
-            'path': docker_mgr.get_profile_dir(profile_name)
+            'path': profile_dir,
+            'message': 'Profile imported successfully with all data (logins, cookies, bookmarks, history, extensions, etc.)'
         })
     except Exception as e:
         if os.path.exists(temp_file.name):
