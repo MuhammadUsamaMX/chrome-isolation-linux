@@ -183,7 +183,9 @@ class DockerManager:
             dns_opt=['ndots:0'],
             command=[
                 f'--class=chrome-{profile_name}',
-                '--disable-gpu'
+                '--enable-features=VulkanFromANGLE,DefaultANGLEVulkan',
+                '--use-gl=angle',
+                '--use-angle=vulkan'
             ]
         )
         

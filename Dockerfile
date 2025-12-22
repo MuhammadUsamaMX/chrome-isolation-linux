@@ -10,6 +10,12 @@ RUN apk add --no-cache \
         alsa-lib \
         mesa-gbm \
         mesa-gl \
+        mesa-vulkan-intel \
+        mesa-vulkan-ati \
+        vulkan-loader \
+        libxcb \
+        gtk+3.0 \
+        libcanberra-gtk3 \
         font-noto \
         pulseaudio-alsa \
         bash \
