@@ -143,11 +143,18 @@ def export_profile(profile_name):
             # - Preferences
             # - Extensions
             # - All other profile data
+            # Define exclusion patterns (Cache and Locks)
+            EXCLUDE_DIRS = {'Cache', 'Code Cache', 'GPUCache', 'ShaderCache', 'GrShaderCache'}
+            EXCLUDE_FILES = {'SingletonLock', 'SingletonCookie', 'Lock'}
+            
             for root, dirs, files in os.walk(profile_dir):
-                # Include hidden files and directories
-                dirs[:] = [d for d in dirs]  # Don't skip hidden dirs
+                # Filter out cache directories to keep export clean and focused on User Data
+                dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
                 
                 for file in files:
+                    if file in EXCLUDE_FILES:
+                        continue
+                        
                     file_path = os.path.join(root, file)
                     
                     # Skip if it's a symlink that points outside the profile
