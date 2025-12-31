@@ -16,16 +16,34 @@ class DesktopManager:
         """Create a .desktop file for the profile"""
         desktop_file = self.get_desktop_file_path(profile_name)
         
+        # Ensure icon exists
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        icon_path = os.path.join(base_dir, 'chrome-icon.png')
+        
+        if not os.path.exists(icon_path):
+            try:
+                import urllib.request
+                print("⬇️  Downloading Chrome icon...")
+                url = "https://upload.wikimedia.org/wikipedia/commons/e/e1/Google_Chrome_icon_%28February_2022%29.svg"
+                # Use a PNG for better compatibility if SVG fails in some DEs, but SVG is generally fine. 
+                # Let's actually use a reliable PNG source or the SVG. 
+                # Wikimedia SVG is fine for modern Linux.
+                urllib.request.urlretrieve(url, icon_path)
+            except Exception as e:
+                print(f"⚠️  Failed to download icon: {e}")
+                icon_path = "google-chrome" # Fallback
+        
         content = f"""[Desktop Entry]
 Version=1.0
 Type=Application
 Name=Chrome ({profile_name})
 Comment=Isolated Chrome Profile: {profile_name}
 Exec={self.launcher_script_path} {profile_name}
-Icon=google-chrome
+Icon={icon_path}
 Terminal=false
 Categories=Network;WebBrowser;
 StartupWMClass=chrome-{profile_name}
+X-AppImage-Version={profile_name}
 """
         
         with open(desktop_file, 'w') as f:
