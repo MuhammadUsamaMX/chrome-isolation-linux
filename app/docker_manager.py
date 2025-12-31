@@ -110,8 +110,10 @@ class DockerManager:
             if container.status == "running":
                 return {"status": "already_running"}
             else:
-                container.start()
-                return {"status": "started"}
+                # Remove the stopped container to force valid re-creation from the latest image
+                # This ensures updates to the Dockerfile/Flags are applied immediately
+                print(f"♻️  Removing stopped container {container_name} to ensure freshness")
+                container.remove(force=True)
         except docker.errors.NotFound:
             pass
         
