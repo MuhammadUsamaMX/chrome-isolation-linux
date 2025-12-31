@@ -91,6 +91,16 @@ else
 fi
 
 echo ""
+echo "🚀 Removing autostart entry..."
+AUTOSTART_FILE="$HOME/.config/autostart/chrome-isolation-startup.desktop"
+if [ -f "$AUTOSTART_FILE" ]; then
+    rm "$AUTOSTART_FILE"
+    echo -e "${GREEN}✅ Autostart entry removed${NC}"
+else
+    echo "  Autostart entry not found"
+fi
+
+echo ""
 echo "📂 Removing installation directory..."
 if [ -d "$INSTALL_DIR" ]; then
     rm -rf "$INSTALL_DIR"
